@@ -4,6 +4,7 @@
 //
 // Usage: swift scripts/render-docs.swift docs/images
 import AppKit
+import ImageIO
 import SwiftUI
 
 let outDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "docs/images"
@@ -257,9 +258,6 @@ func scenes() -> [(String, AnyView)] {
             AppIcon(symbol: "bell.badge.fill", colors: [Color(red: 0.49, green: 0.42, blue: 1), Color(red: 0.29, green: 0.18, blue: 0.79)], size: 120)
                 .padding(4)
         )),
-        ("hero", AnyView(
-            Screen(width: 960, height: 220, card: .code("482913", from: "Acme Bank", copied: false))
-        )),
         ("notification", AnyView(
             Screen(card: .notification(icon: chat, app: "Chat", title: "Maya Chen", body: "Running 5 minutes late, grab us a table?"))
         )),
@@ -299,6 +297,94 @@ func scenes() -> [(String, AnyView)] {
     ]
 }
 
+// MARK: - Animation (docs/images/demo.gif)
+
+/// One frame of the demo: the notch opening by `open` (0…1) with a card,
+/// and an optional pointer.
+struct DemoFrame: View {
+    var open: CGFloat
+    var card: Card?
+    var pointer: CGPoint?
+    var pressed = false
+    var body: some View {
+        let w = 190 + (400 - 190) * open
+        let h = 32 + 66 * open
+        ZStack(alignment: .top) {
+            // Calmer than the stills' wallpaper: a GIF stores every frame whole.
+            LinearGradient(colors: [Color(red: 0.16, green: 0.17, blue: 0.36), Color(red: 0.36, green: 0.24, blue: 0.5)],
+                           startPoint: .leading, endPoint: .trailing)
+            MenuBar(height: 32, compact: true)
+            ZStack(alignment: .top) {
+                NotchShape(bottomRadius: 10 + 14 * open).fill(Color.black).frame(width: w, height: h)
+                if let card, open > 0.55 {
+                    CardContent(card: card)
+                        .frame(width: 364, height: 58)
+                        .padding(.top, 34)
+                        .opacity(Double((open - 0.55) / 0.45))
+                        .foregroundStyle(.white)
+                }
+            }
+            .shadow(color: .black.opacity(0.35 * open), radius: 18, y: 8)
+            if let pointer {
+                Image(systemName: "cursorarrow")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 1.5)
+                    .scaleEffect(pressed ? 0.85 : 1)
+                    .position(pointer)
+            }
+        }
+        .frame(width: 640, height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+@MainActor
+func writeDemoGIF(to path: String) {
+    let fps = 15.0
+    func ease(_ t: Double) -> CGFloat { let t = min(max(t, 0), 1); return CGFloat(1 - pow(1 - t, 3)) }
+    let message = Card.notification(icon: chat, app: "Chat", title: "Maya Chen", body: "Running 5 minutes late, grab us a table?")
+    let rest = CGPoint(x: 590, y: 128), copyButton = CGPoint(x: 452, y: 72), away = CGPoint(x: 540, y: 120)
+    var frames: [DemoFrame] = []
+    func add(_ seconds: Double, _ make: (Double) -> DemoFrame) {
+        let n = Int(seconds * fps)
+        for i in 0..<n { frames.append(make(Double(i) / Double(max(n - 1, 1)))) }
+    }
+    add(0.6) { _ in DemoFrame(open: 0, card: nil, pointer: rest) }
+    add(0.4) { t in DemoFrame(open: ease(t), card: message, pointer: rest) }
+    add(2.2) { _ in DemoFrame(open: 1, card: message, pointer: rest) }
+    add(0.35) { t in DemoFrame(open: 1 - ease(t), card: message, pointer: rest) }
+    add(0.6) { _ in DemoFrame(open: 0, card: nil, pointer: rest) }
+    let code = Card.code("482913", from: "Acme Bank", copied: false)
+    add(0.4) { t in DemoFrame(open: ease(t), card: code, pointer: rest) }
+    add(0.5) { _ in DemoFrame(open: 1, card: code, pointer: rest) }
+    add(0.7) { t in
+        let k = ease(t)
+        return DemoFrame(open: 1, card: code, pointer: CGPoint(x: rest.x + (copyButton.x - rest.x) * k, y: rest.y + (copyButton.y - rest.y) * k))
+    }
+    add(0.15) { _ in DemoFrame(open: 1, card: code, pointer: copyButton, pressed: true) }
+    let copied = Card.code("482913", from: "Acme Bank", copied: true)
+    add(0.4) { t in
+        let k = ease(t)
+        return DemoFrame(open: 1, card: copied, pointer: CGPoint(x: copyButton.x + (away.x - copyButton.x) * k, y: copyButton.y + (away.y - copyButton.y) * k))
+    }
+    add(1.3) { _ in DemoFrame(open: 1, card: copied, pointer: away) }
+    add(0.35) { t in DemoFrame(open: 1 - ease(t), card: copied, pointer: away) }
+    add(0.8) { _ in DemoFrame(open: 0, card: nil, pointer: away) }
+
+    let url = URL(fileURLWithPath: path) as CFURL
+    guard let dest = CGImageDestinationCreateWithURL(url, "com.compuserve.gif" as CFString, frames.count, nil) else { return }
+    CGImageDestinationSetProperties(dest, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+    let frameProps = [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: 1.0 / fps]] as CFDictionary
+    for f in frames {
+        let r = ImageRenderer(content: f.environment(\.colorScheme, .dark))
+        r.scale = 1.5
+        if let cg = r.cgImage { CGImageDestinationAddImage(dest, cg, frameProps) }
+    }
+    CGImageDestinationFinalize(dest)
+    print("✓ \(path) (\(frames.count) frames)")
+}
+
 // MARK: - Output
 
 @MainActor
@@ -316,4 +402,5 @@ MainActor.assumeIsolated {
     for (name, view) in scenes() {
         write(view.padding(1), to: "\(outDir)/\(name).png")
     }
+    writeDemoGIF(to: "\(outDir)/demo.gif")
 }

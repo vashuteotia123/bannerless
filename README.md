@@ -17,7 +17,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero.png" alt="A sign-in code shown in the MacBook notch with a Copy button">
+  <img src="docs/images/demo.gif" width="640" alt="Animation: a message appears in the notch and tucks away, then a sign-in code appears and is copied with one click">
+  <br><sub>A message arrives in the notch, then a sign-in code is copied with one click. (Animation)</sub>
 </p>
 
 ---
