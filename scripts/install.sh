@@ -3,7 +3,7 @@
 #
 #   From a checkout:   make install
 #   A built app:       ./scripts/install.sh dist/Bannerless.app
-#   One line:          curl -fsSL https://raw.githubusercontent.com/<you>/bannerless/main/scripts/install.sh | bash
+#   One line:          curl -fsSL https://raw.githubusercontent.com/vashuteotia123/bannerless/main/scripts/install.sh | bash
 #
 # With no argument it builds from source, so it needs Apple's free Command Line
 # Tools (xcode-select --install). Nothing here phones home.
@@ -21,7 +21,7 @@ if [ -z "$APP" ]; then
     SRC="$(pwd)"
   else
     SRC="$(mktemp -d)/bannerless"
-    REPO="${BANNERLESS_REPO:-https://github.com/<you>/bannerless.git}"
+    REPO="${BANNERLESS_REPO:-https://github.com/vashuteotia123/bannerless.git}"
     echo "→ Downloading source from $REPO"
     git clone --depth 1 "$REPO" "$SRC"
   fi
